@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Monad for the masses</title>
+<meta name="description" content="Monad for the masses">
+
+<link rel="stylesheet" href="/css/main.css">
+<link rel="canonical" href="http://fabiomarreco.github.io/blog/2019/monad-for-the-masses/">
+<link rel="alternate" type="application/rss+xml" title="Marreco´s coding blog" href="http://fabiomarreco.github.io/feed.xml" />
+
+ <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-117109369-1', 'auto');
+  ga('send', 'pageview');
+</script>
+
+
+
+
+</head>
+<body>
+  <header class="site-header">
+  <div class="container">
+    <input type="checkbox" id="toggleNavbar">
+    <h1 class="logo"><a href="/">Fabio Marreco <small>Coding entropy</small></a></h1>
+    <label for="toggleNavbar" role="button" class="toggle-navbar-button">
+      <i class="icon icon-menu"></i>
+      <i class="icon icon-cross"></i>
+    </label>
+    <nav class="navbar">
+      <ul>
+        <li><a href="/" title="Home">Home</a></li>
+        
+          <li><a href="/about" title="About">About</a></li>
+        
+          <li><a href="/blog" title="Blog">Blog</a></li>
+        
+          <li><a href="/links" title="Links">Links</a></li>
+        
+        <!-- <li><a href="https://github.com/fabiomarreco/archive/master.zip" title="Download">Download</a></li> -->
+        <li><a href="/feed.xml" target="_blank"><i class="icon icon-rss"></i></a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+
+<main class="main-container">
+  <div class="container">
+    <article role="article" class="post">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+
+  <div class="card">
+    <header class="post-header">
+      <h1 class="post-title">Monad for the masses</h1>
+      <em class="post-meta">
+        <time>Dec 1, 2019</time>
+      </em>
+    </header>
+
+    <div class="post-content">
+      
+      <h1 id="monad-for-the-masses">Monad for the masses</h1>
+
+<p>If you came to this post, you probably already heard the dreadful word <em>MONADS</em> somewhere. Maybe you are trying to make your code <code class="highlighter-rouge">more functional</code> as seems to be the hype now, maybe you are using lambdas, linq queries, immutability etc. and want to take the next step.</p>
+
+<p>I would probably argue that the next step would be to play around in a language that supports <a href="https://fsharpforfunandprofit.com/posts/currying/">curring</a>, <a href="https://fsharpforfunandprofit.com/posts/partial-application/">partial applications</a> and <a href="https://fsharpforfunandprofit.com/posts/discriminated-unions/">sum types</a>. (I´ve talked about those using F# in a <a href="/financial-modelling-in-fsharp-part-1">previous post</a> ). But if you are still not ready to take the jump (to a functional language) and are curious about this monad thingy, fear not. This post is for you.</p>
+
+<blockquote>
+  <p>I´ll be using C#, but the concepts can be used in any statically typed language that supports parametric polymorphism (the <code class="highlighter-rouge">&lt;T&gt;</code> in <code class="highlighter-rouge">Repository&lt;T&gt;</code> for example). So… golang people can leave now. (kidding).</p>
+</blockquote>
+
+<h2 id="what-is-a-monad-then">What is a monad, then?</h2>
+
+<p>Easy:</p>
+<blockquote>
+  <p><em>“Monads are just monoids in the category of endofunctors”</em></p>
+</blockquote>
+
+<p>Satisfied ?</p>
+
+<p>This is what we get in many explanations out there. The problem is, unless you are a category theory mathematician this holds little meaning. This is indeed the strictly correct definition and is applicable far beyond programming, (albeit incomprehensible to most people). So I will not delve into the mathematical definition. Lets focus on its application to programming.</p>
+
+<blockquote>
+  <p>If, however you are not afraid of a little math, I highly recommend Bartosz Milewski´s <a href="https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/">Category Theory for Programmers</a>. It is free in <a href="https://github.com/hmemcpy/milewski-ctfp-pdf">PDF</a> and <a href="https://github.com/onlurking/category-theory-for-programmers">Kindle</a>, or in <a href="https://www.blurb.com/b/9621951-category-theory-for-programmers-new-edition-hardco">Hardcover</a>. He also has several <a href="https://www.youtube.com/playlist?list=PLqjxJs3NyH72EvfeePfMfUJgBJcspSNYX">Youtube video classes</a>.</p>
+</blockquote>
+
+<p>So to programmers, monads can be a powerful abstraction that lets us compose work while always abiding to some strict behavior.</p>
+
+<p>I know it still too abstract but don´t worry, It will soon become more clear with examples. But know this: All you need to implement a monad are 3 functions <code class="highlighter-rouge">Lift</code>, <code class="highlighter-rouge">Map</code> and <code class="highlighter-rouge">FlatMap</code> (which we will define latter on).</p>
+
+<p>Some usages of monads are:</p>
+
+<ul>
+  <li>Error handling</li>
+  <li>Transform &amp; operate on sequences and lists</li>
+  <li>Inject Dependencies</li>
+  <li>Handle side effects (such as logging or state) in a pure function</li>
+  <li>Lazy code evaluation</li>
+  <li>Optional Values</li>
+  <li>Parsing</li>
+</ul>
+
+<p>And the list goes on. In fact, once you get conformable with it, you will start seeing monads everywhere. We will start with error handling example and see how it goes.</p>
+
+<h2 id="unhandled-exception">Unhandled Exception</h2>
+
+<p>We all know OOP languages have built in error handling mechanism called exceptions. But truth being told, sometimes they can be a huge pain. It is never clear when a method might throw an exception or why. The type of the exception may be anything. And even with java´s throws declaration, error handling is still awkward.</p>
+
+<p>Functional languages try to aim at functions that are not only <em>“pure”</em> (have no side effects) but that are also <em>“total”</em>. Meaning that for every input there should be an defined output. Throwing exceptions is a type of result that was not defined in the function´s signature. Notice the following function, for example:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="n">T</span> <span class="n">GetItemIndex</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="p">(</span><span class="n">T</span><span class="p">[]</span> <span class="n">array</span><span class="p">,</span> <span class="kt">int</span> <span class="n">index</span><span class="p">)</span> <span class="p">{</span> 
+    <span class="k">return</span> <span class="n">array</span><span class="p">[</span><span class="n">index</span><span class="p">];</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>When we try to pass an <code class="highlighter-rouge">index</code> greater then the array´s length (or negative number), this function blows up with a <code class="highlighter-rouge">IndexOutOfRangeException</code>, therefore this function is undefined for some inputs. This function is not <em>total</em>.</p>
+
+<h2 id="making-it-total">Making it total</h2>
+
+<p>We can make make it total by enhancing the result type to contain the error case:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="nf">Result</span><span class="p">(</span><span class="kt">string</span> <span class="n">errorDescription</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">IsSuccess</span> <span class="p">=</span> <span class="k">false</span><span class="p">;</span>
+        <span class="n">ErrorDescription</span> <span class="p">=</span> <span class="n">errorDescription</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="nf">Result</span><span class="p">(</span><span class="n">T</span> <span class="k">value</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">IsSuccess</span> <span class="p">=</span> <span class="k">true</span><span class="p">;</span>
+        <span class="n">Value</span> <span class="p">=</span> <span class="k">value</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="nf">Error</span><span class="p">(</span><span class="kt">string</span> <span class="n">description</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">description</span><span class="p">);</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="nf">Success</span><span class="p">(</span><span class="n">T</span> <span class="n">result</span><span class="p">)</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">result</span><span class="p">);</span>
+
+    <span class="k">public</span> <span class="kt">bool</span> <span class="n">IsSuccess</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="n">T</span> <span class="n">Value</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="kt">string</span> <span class="n">ErrorDescription</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">GetItemIndex</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="p">(</span><span class="n">T</span><span class="p">[]</span> <span class="n">array</span><span class="p">,</span> <span class="kt">int</span> <span class="n">index</span><span class="p">)</span> <span class="p">{</span> 
+    <span class="k">if</span> <span class="p">(</span><span class="n">index</span> <span class="p">&lt;</span> <span class="m">0</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="s">"Index should be greater then zero"</span><span class="p">);</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">index</span> <span class="p">&gt;=</span> <span class="n">array</span><span class="p">.</span><span class="n">Length</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="s">"Index is greater then the array size"</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;.</span><span class="nf">Success</span><span class="p">(</span><span class="n">array</span><span class="p">[</span><span class="n">index</span><span class="p">]);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>Now the function is always defined.</p>
+
+<blockquote>
+  <p>I´ve added an ErrorDescription as string, but you could use an enumeration, or no description at all, It´s up to you.</p>
+</blockquote>
+
+<p>It is nice that it is a generic type, and can be used in many different scenarios, such as retrieving from database, or anything else that might result in error.</p>
+
+<h2 id="real-world-mess">Real world mess</h2>
+
+<p>When we look at real world examples where we need to combine results from different sources, the usage of the class above can become less then ideal. Imagine a simple retail store domain were in order to add a product to a basket, where we need to:</p>
+
+<ol>
+  <li>Retrieve the product from the database</li>
+  <li>Reserve the product (so that we guarantee we have it in stock)</li>
+  <li>Add the reserved product to a customer basket</li>
+</ol>
+
+<p>Ideally, we would have a function such as (in pseudo-code)</p>
+
+<div class="language-js highlighter-rouge"><pre class="highlight"><code><span class="kd">function</span> <span class="nx">AddToBasket</span><span class="p">(</span><span class="nx">productId</span><span class="p">,</span> <span class="nx">customerId</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="nx">product</span> <span class="o">=</span> <span class="nx">productRepository</span><span class="p">.</span><span class="nx">GetProduct</span><span class="p">(</span><span class="nx">productId</span><span class="p">);</span>
+    <span class="nx">productReservation</span> <span class="o">=</span> <span class="nx">inventory</span><span class="p">.</span><span class="nx">ReserveProduct</span><span class="p">(</span><span class="nx">product</span><span class="p">);</span>
+    <span class="nx">customer</span> <span class="o">=</span> <span class="nx">customerRepository</span><span class="p">.</span><span class="nx">GetCustomer</span><span class="p">(</span><span class="nx">customerId</span><span class="p">);</span>
+    <span class="nx">newBasket</span> <span class="o">=</span> <span class="nx">customer</span><span class="p">.</span><span class="nx">Basket</span><span class="p">.</span><span class="nx">WithProductReservation</span><span class="p">(</span><span class="nx">productReservation</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">newBasket</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>However each of these steps can fail. If we throw in some error handling, things get a lot uglier:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code>
+<span class="k">public</span> <span class="k">interface</span> <span class="n">IProductRepository</span>
+<span class="p">{</span>
+    <span class="n">Result</span><span class="p">&lt;</span><span class="n">Product</span><span class="p">&gt;</span> <span class="nf">GetProductId</span><span class="p">(</span><span class="kt">string</span> <span class="n">id</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="k">interface</span> <span class="n">IInventory</span>
+<span class="p">{</span>
+    <span class="n">Result</span><span class="p">&lt;</span><span class="n">ProductReservation</span><span class="p">&gt;</span> <span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">Product</span> <span class="n">product</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="k">interface</span> <span class="n">IBasket</span>
+<span class="p">{</span>
+    <span class="n">IBasket</span> <span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">ProductReservation</span> <span class="n">reservation</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="k">interface</span> <span class="n">ICustomerRepository</span>
+<span class="p">{</span>
+    <span class="n">Result</span><span class="p">&lt;</span><span class="n">Customer</span><span class="p">&gt;</span> <span class="nf">GetCustomerId</span><span class="p">(</span><span class="kt">string</span> <span class="n">customerId</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">//.........
+</span><span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;</span> <span class="nf">AddToBasket</span><span class="p">(</span><span class="kt">string</span> <span class="n">productId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">customerId</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">productResult</span> <span class="p">=</span> <span class="n">_productRepository</span><span class="p">.</span><span class="nf">GetProductId</span><span class="p">(</span><span class="n">productId</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(!</span><span class="n">productResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">productResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">product</span> <span class="p">=</span> <span class="n">productResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+
+    <span class="kt">var</span> <span class="n">reservationResult</span> <span class="p">=</span> <span class="n">_inventory</span><span class="p">.</span><span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">product</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(!</span><span class="n">reservationResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">reservationResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span> 
+    <span class="kt">var</span> <span class="n">reservation</span> <span class="p">=</span> <span class="n">reservationResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+
+
+    <span class="kt">var</span> <span class="n">customerResult</span> <span class="p">=</span> <span class="n">_customerRepository</span><span class="p">.</span><span class="nf">GetCustomerId</span><span class="p">(</span><span class="n">customerId</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(!</span><span class="n">customerResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">customerResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+        
+    <span class="kt">var</span> <span class="n">basket</span> <span class="p">=</span> <span class="n">customerResult</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Basket</span><span class="p">;</span>
+
+    <span class="kt">var</span> <span class="n">newBasket</span> <span class="p">=</span> <span class="n">basket</span><span class="p">.</span><span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">reservation</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Success</span><span class="p">(</span><span class="n">newBasket</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>Code is now entangled with error handling. Exceptions can also get very messy with lots of <code class="highlighter-rouge">try/catch</code>, especially if you need to take action on each error.</p>
+
+<h2 id="parameterize-with-functions">Parameterize with functions</h2>
+
+<p>First, let´s take a look at the last part of our <code class="highlighter-rouge">AddToBasket</code> function:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">if</span> <span class="p">(!</span><span class="n">customerResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">customerResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+    
+<span class="kt">var</span> <span class="n">basket</span> <span class="p">=</span> <span class="n">customerResult</span><span class="p">.</span><span class="n">Value</span><span class="p">.</span><span class="n">Basket</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">newBasket</span> <span class="p">=</span> <span class="n">basket</span><span class="p">.</span><span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">reservation</span><span class="p">);</span>
+<span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Success</span><span class="p">(</span><span class="n">newBasket</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<p>From the <code class="highlighter-rouge">Result</code> perspective, it is simply applying a transformation to the customer if it exists, or short circuiting in case of error. In fact, we can extract that logic and define a function to do just that. Let´s call that function <code class="highlighter-rouge">Map</code></p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span>
+<span class="p">{</span>
+    <span class="c1">//...
+</span>    <span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;</span> <span class="n">Map</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">T</span><span class="p">,</span> <span class="n">T2</span><span class="p">&gt;</span> <span class="n">fn</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(!</span><span class="n">IsSuccess</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+
+        <span class="kt">var</span> <span class="n">value2</span> <span class="p">=</span> <span class="nf">fn</span><span class="p">(</span><span class="n">Value</span><span class="p">);</span>
+        <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;.</span><span class="nf">Success</span><span class="p">(</span><span class="n">value2</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span> 
+</code></pre>
+</div>
+
+<p>We can now make the original code more readable:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code>    <span class="k">return</span> <span class="n">customerResult</span><span class="p">.</span><span class="nf">Map</span><span class="p">(</span><span class="n">c</span><span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Basket</span><span class="p">.</span><span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">reservation</span><span class="p">));</span>
+</code></pre>
+</div>
+
+<p>Oneliner! Now we are getting somewhere. Can we apply the same strategy to other pieces of the code? Let´s try with the first part:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="kt">var</span> <span class="n">productResult</span> <span class="p">=</span> <span class="n">_productRepository</span><span class="p">.</span><span class="nf">GetProductId</span><span class="p">(</span><span class="n">productId</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(!</span><span class="n">productResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">productResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+<span class="kt">var</span> <span class="n">product</span> <span class="p">=</span> <span class="n">productResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">reservationResult</span> <span class="p">=</span> <span class="n">_inventory</span><span class="p">.</span><span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">product</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(!</span><span class="n">reservationResult</span><span class="p">.</span><span class="n">IsSuccess</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">reservationResult</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span> 
+<span class="kt">var</span> <span class="n">reservation</span> <span class="p">=</span> <span class="n">reservationResult</span><span class="p">.</span><span class="n">Value</span><span class="p">;</span>
+</code></pre>
+</div>
+
+<p>Will then become:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="n">Result</span><span class="p">&lt;</span><span class="n">Result</span><span class="p">&lt;</span><span class="n">ProductReservation</span><span class="p">&gt;&gt;</span> <span class="n">reservation</span> <span class="p">=</span> <span class="n">productResult</span><span class="p">.</span><span class="nf">Map</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">_inventory</span><span class="p">.</span><span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">p</span><span class="p">));</span>
+</code></pre>
+</div>
+
+<p>Huumm.. almost. We need now someway to <em>flatten</em> the <code class="highlighter-rouge">Result&lt;Result&lt;T&gt;&gt;</code> into <code class="highlighter-rouge">Result&lt;T&gt;</code>. In fact <code class="highlighter-rouge">Map</code> and then <code class="highlighter-rouge">Flatten</code> will be so common, we might as well create a function that does both at the same time. Let´s call it <code class="highlighter-rouge">FlatMap</code>:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span>
+<span class="p">{</span>
+    <span class="c1">//...
+</span>    <span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;</span> <span class="n">FlatMap</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">T</span><span class="p">,</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;&gt;</span> <span class="n">fn</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(!</span><span class="n">IsSuccess</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T2</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="n">ErrorDescription</span><span class="p">);</span>
+
+        <span class="k">return</span> <span class="nf">fn</span><span class="p">(</span><span class="n">Value</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>Thus, the function will become:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;</span> <span class="nf">AddToBasket</span><span class="p">(</span><span class="kt">string</span> <span class="n">productId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">customerId</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">productResult</span> <span class="p">=</span> <span class="n">_productRepository</span><span class="p">.</span><span class="nf">GetProductId</span><span class="p">(</span><span class="n">productId</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">reservationResult</span> <span class="p">=</span> <span class="n">productResult</span><span class="p">.</span><span class="nf">FlatMap</span><span class="p">(</span><span class="n">p</span> <span class="p">=&gt;</span> <span class="n">_inventory</span><span class="p">.</span><span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">p</span><span class="p">));</span>
+    <span class="kt">var</span> <span class="n">customerResult</span> <span class="p">=</span> <span class="n">_customerRepository</span><span class="p">.</span><span class="nf">GetCustomerId</span><span class="p">(</span><span class="n">customerId</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="n">reservationResult</span>
+                    <span class="p">.</span><span class="nf">FlatMap</span><span class="p">(</span><span class="n">reservation</span> <span class="p">=&gt;</span> 
+                        <span class="n">customerResult</span><span class="p">.</span><span class="nf">Map</span><span class="p">(</span><span class="n">c</span><span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Basket</span><span class="p">.</span><span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">reservation</span><span class="p">)));</span>
+    <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>Congratulations, you have now (inadvertently) defined a <em>Monad</em>. Remember that I said monads need only 3 functions? Let´s recap:</p>
+
+<ul>
+  <li><strong>Lift</strong>: Takes a value and <em>lifts</em> it into a monad. We have defined a surrogate for it. It´s the <code class="highlighter-rouge">Success</code> function. It takes any valid <code class="highlighter-rouge">T</code> value and creates a <code class="highlighter-rouge">Result&lt;T&gt;</code>.</li>
+  <li><strong>Map</strong>: Transforms the content (of type <code class="highlighter-rouge">T</code>) with a function <code class="highlighter-rouge">Func&lt;T, T2&gt;</code> into a <code class="highlighter-rouge">Result&lt;T2&gt;</code>. Something like <code class="highlighter-rouge">Result&lt;T2&gt; Map(Func&lt;T, T2&gt; fn)</code>. Note that if the <code class="highlighter-rouge">Result</code> is an error , this functions does nothing, just propagates the error.</li>
+  <li><strong>FlatMap</strong>: It is the function that give the monad a <em>composable</em> capability. It will create a <code class="highlighter-rouge">Result&lt;T2&gt;</code> given a method <code class="highlighter-rouge">Func&lt;T, Result&lt;T2&gt;&gt;</code>. Or <code class="highlighter-rouge">Result&lt;T2&gt; FlatMap(Func&lt;T, T2&gt; fn)</code>. Sometimes it is called <code class="highlighter-rouge">Bind</code> or <code class="highlighter-rouge">fmap</code></li>
+</ul>
+
+<blockquote>
+  <p>Defining only the functions <strong>Lift</strong> and <strong>Map</strong> give you the so called <em>Functor</em>. It is a useful abstraction and sometimes it is all you need. Functors however, are not composable you will need a <code class="highlighter-rouge">FlatMap</code> thus having a <em>Monad</em> (That is where that ´Monads are monoids in the category of endofunctors´ come from. Monoids are composable things, so monads are composable functors).</p>
+</blockquote>
+
+<h2 id="making-it-pretty">Making it pretty</h2>
+
+<p>Some functional languages have a way to express monads in a native way. Look at the <code class="highlighter-rouge">AddToBasket</code> method in F#</p>
+
+<pre><code class="language-fsharp">let addToBasket productId customerId = result { 
+    let! product = _productRepository.GetProductId(productId)
+    let! reservation = _inventory.ReserveProduct(product )
+    let! customer = _customerRepository.GetCustomerId(customerId);
+    return customer.Basket.WithProductReservation(reservation)
+ } 
+</code></pre>
+
+<p>The <code class="highlighter-rouge">result</code> keyword says that everything inside is a <em>computation expression</em> over <code class="highlighter-rouge">Result&lt;&gt;</code>, and the <code class="highlighter-rouge">let!</code> keyword (instead of the usual <code class="highlighter-rouge">let</code>) is a syntax sugar for the <code class="highlighter-rouge">FlatMap</code> (in F# it is actually called <code class="highlighter-rouge">Bind</code>). And this is useful to create very expressive code and push boilerplate to somewhere behind the scenes.</p>
+
+<p>Other functional languages have something similar like Haskell´s <code class="highlighter-rouge">do</code> notation or Scala´s <code class="highlighter-rouge">for</code> comprehension.</p>
+
+<p>C#´s <code class="highlighter-rouge">async</code>/<code class="highlighter-rouge">await</code> use the same idea to make the <em>monad</em> <code class="highlighter-rouge">Task&lt;T&gt;</code> easy to use. Unfortunately It only works for tasks.</p>
+
+<p>However, there is something about how LINQ is implemented that few people seems to realize, take a look at the following LINQ Query:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="kt">var</span> <span class="n">purchaseReport</span> <span class="p">=</span> 
+    <span class="k">from</span> <span class="n">customer</span> <span class="k">in</span> <span class="n">customers</span>
+    <span class="k">from</span> <span class="n">purchase</span> <span class="k">in</span> <span class="n">customer</span><span class="p">.</span><span class="n">Purchases</span>
+    <span class="k">select</span> <span class="k">new</span> <span class="p">{</span>
+        <span class="n">CustomerName</span> <span class="p">=</span> <span class="n">customer</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+        <span class="n">ProductName</span> <span class="p">=</span> <span class="n">purchase</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+        <span class="n">ProcutPrice</span> <span class="p">=</span> <span class="n">purchase</span><span class="p">.</span><span class="n">Price</span>
+    <span class="p">}</span>
+</code></pre>
+</div>
+<p>This is actually a syntax sugar for:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="kt">var</span> <span class="n">purchaseReport</span> <span class="p">=</span>
+    <span class="n">customers</span>
+        <span class="p">.</span><span class="nf">SelectMany</span><span class="p">(</span>
+            <span class="n">customer</span> <span class="p">=&gt;</span> 
+                <span class="n">customer</span><span class="p">.</span><span class="n">Purchases</span>
+                    <span class="p">.</span><span class="nf">Select</span><span class="p">(</span><span class="n">purchase</span> <span class="p">=&gt;</span> <span class="k">new</span> <span class="p">{</span>
+                        <span class="n">CustomerName</span> <span class="p">=</span> <span class="n">customer</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+                        <span class="n">ProductName</span> <span class="p">=</span> <span class="n">purchase</span><span class="p">.</span><span class="n">Name</span><span class="p">,</span>
+                        <span class="n">ProductPrice</span> <span class="p">=</span> <span class="n">purchase</span><span class="p">.</span><span class="n">Price</span> <span class="p">}));</span>
+</code></pre>
+</div>
+
+<p>And the methods <code class="highlighter-rouge">SelectMany</code> and <code class="highlighter-rouge">Select</code> are defined on the <code class="highlighter-rouge">Enumerable</code> extension class:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;</span> <span class="n">Select</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span><span class="n">TResult</span><span class="p">&gt;(</span>
+    <span class="k">this</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">&gt;</span> <span class="n">source</span><span class="p">,</span>
+    <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;</span> <span class="n">selector</span><span class="p">);</span>
+
+<span class="k">public</span> <span class="k">static</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;</span> <span class="n">SelectMany</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span><span class="n">TResult</span><span class="p">&gt;(</span>
+    <span class="k">this</span> <span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">&gt;</span> <span class="n">source</span><span class="p">,</span>
+    <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span><span class="n">IEnumerable</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;&gt;</span> <span class="n">selector</span><span class="p">);</span>
+</code></pre>
+</div>
+
+<p>Take your time to take a good look at those signatures, and compare them with <code class="highlighter-rouge">Map</code> and <code class="highlighter-rouge">FlatMap</code>. Any resemblance? That is because sequences are also <em>monads</em>!. In fact, if we define similar extension functions to our <code class="highlighter-rouge">Result&lt;&gt;</code> we can hijack LINQ´s syntax to have our own monadic computation expression in C#.</p>
+
+<p>Define the following class:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">Result</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;</span> <span class="n">Select</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;(</span>
+            <span class="k">this</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">&gt;</span> <span class="n">m</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;</span> <span class="n">f</span><span class="p">)</span>
+        <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="nf">Map</span><span class="p">(</span><span class="n">f</span><span class="p">);</span>
+
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;</span> <span class="n">SelectMany</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;(</span>
+        <span class="k">this</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">&gt;</span> <span class="n">m</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;&gt;</span> <span class="n">f</span><span class="p">)</span>
+        <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="nf">FlatMap</span><span class="p">(</span><span class="n">f</span><span class="p">);</span>
+
+    <span class="cm">/*
+    *   This function is required by linq for optimization reasons, you can define it 
+    * in a very mechanical way as bellow
+    */</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TResult</span><span class="p">&gt;</span> <span class="n">SelectMany</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TM</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;(</span>
+        <span class="k">this</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">&gt;</span> <span class="n">m</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">TM</span><span class="p">&gt;&gt;</span> <span class="n">mSelector</span><span class="p">,</span> <span class="n">Func</span><span class="p">&lt;</span><span class="n">TSource</span><span class="p">,</span> <span class="n">TM</span><span class="p">,</span> <span class="n">TResult</span><span class="p">&gt;</span> <span class="n">rSelector</span><span class="p">)</span>
+        <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="nf">FlatMap</span><span class="p">(</span><span class="n">v</span> <span class="p">=&gt;</span> <span class="nf">mSelector</span><span class="p">(</span><span class="n">v</span><span class="p">).</span><span class="nf">Map</span><span class="p">(</span><span class="n">tm</span> <span class="p">=&gt;</span> <span class="nf">rSelector</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">tm</span><span class="p">)));</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>With the above extension in scope, we can rewrite our <code class="highlighter-rouge">AddToBasket</code> method as</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">IBasket</span><span class="p">&gt;</span> <span class="nf">AddToBasketV3</span><span class="p">(</span><span class="kt">string</span> <span class="n">productId</span><span class="p">,</span> <span class="kt">string</span> <span class="n">customerId</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> 
+        <span class="k">from</span> <span class="n">product</span> <span class="k">in</span> <span class="n">_productRepository</span><span class="p">.</span><span class="nf">GetProductId</span><span class="p">(</span><span class="n">productId</span><span class="p">)</span>
+        <span class="k">from</span> <span class="n">reservation</span> <span class="k">in</span> <span class="n">_inventory</span><span class="p">.</span><span class="nf">ReserveProduct</span><span class="p">(</span><span class="n">product</span><span class="p">)</span>
+        <span class="k">from</span> <span class="n">customer</span> <span class="k">in</span> <span class="n">_customerRepository</span><span class="p">.</span><span class="nf">GetCustomerId</span><span class="p">(</span><span class="n">customerId</span><span class="p">)</span>
+        <span class="k">select</span> <span class="n">customer</span><span class="p">.</span><span class="n">Basket</span><span class="p">.</span><span class="nf">WithProductReservation</span><span class="p">(</span><span class="n">reservation</span><span class="p">);</span>
+        
+    <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>Which is actually doing error handling instead of the usual list/sequence projection. The code also looks very clean, which is nice. We can even define nice-to-have methods like</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">Result</span>
+<span class="p">{</span>
+    <span class="c1">//....
+</span>    <span class="k">public</span> <span class="k">static</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">Try</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">fn</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">try</span>
+        <span class="p">{</span>
+            <span class="kt">var</span> <span class="k">value</span> <span class="p">=</span> <span class="nf">fn</span><span class="p">();</span>
+            <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;.</span><span class="nf">Success</span><span class="p">(</span><span class="k">value</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">catch</span><span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="k">return</span> <span class="n">Result</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;.</span><span class="nf">Error</span><span class="p">(</span><span class="n">ex</span><span class="p">.</span><span class="n">Message</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+</div>
+
+<p>So we can use on 3rd party libraries like:</p>
+
+<div class="language-csharp highlighter-rouge"><pre class="highlight"><code><span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> 
+    <span class="k">from</span> <span class="n">dataReader</span> <span class="k">in</span>  <span class="n">Result</span><span class="p">.</span><span class="nf">Try</span><span class="p">(()</span> <span class="p">=&gt;</span> <span class="n">sqlCommand</span><span class="p">.</span><span class="nf">Execute</span><span class="p">())</span>
+    <span class="k">from</span> <span class="n">product</span> <span class="k">in</span> <span class="nf">ReadProduct</span><span class="p">(</span><span class="n">dataReader</span><span class="p">)</span>
+    <span class="c1">//...
+</span></code></pre>
+</div>
+
+<h3 id="tldr">tl;dr</h3>
+
+<p>Monads are a powerful abstraction that lets us compose pieces of codes with some behind-the-scenes state and control flow. Most functional languages have native support for creating and using them. Oddly enough, C# also has a built-in way of expressing them, albeit verbose and originally thought only for sequences.</p>
+
+<p>We managed to create a Result monad to express functions that might return a failure. I´ve saved a <a href="https://gist.github.com/fabiomarreco/a9af5b466f080662aa22df8a3047975e">gist</a> containing this code and will eventually post my own full implementation of the Result monad (with also other useful monads like Maybe, Reader, etc.).</p>
+
+<p>I´m not saying you should always use this technique, exceptions do have their place. But if you would like to use it, there is a library called <a href="http://fsprojects.github.io/Chessie/">Chessie</a> that is pretty good (it is implemented in F#, but it works great using from a C# code base).</p>
+
+<p>If you would like to dig a little deeper, I highly recommend Scott Wlaschin´s <a href="https://fsharpforfunandprofit.com/rop/">Railway Oriented Programming blog series</a>.</p>
+
+    </div>
+
+
+    <div class="PageNavigation">
+      
+      <a class="prev" href="/financial-modelling-in-fsharp-part-1">&laquo; Financial modelling in F# Part 1 - Interest Rates</a>
+       
+    </div>
+    
+    
+<hr>
+
+<aside id="comments" class="disqus">
+  <h3><i class="icon icon-comments-o"></i> Comments</h3>
+  <div id="disqus_thread"></div>
+  <script>
+    var disqus_config = function() {
+      this.page.url = 'http://fabiomarreco.github.io/blog/2019/monad-for-the-masses/';
+      this.page.identifier = '/blog/2019/monad-for-the-masses';
+    };
+    (function() {
+      var d = document,
+      s = d.createElement('script');
+      s.src = '//fabiomarreco.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  </script>
+  <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript" rel="nofollow">comments powered by Disqus.</a></noscript>
+</aside>
+
+
+  </div>
+
+</article>
+
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <ul class="social">
+  <li><a href="https://github.com/fabiomarreco" target="_blank"><i class="icon icon-github"></i></a></li>
+  <li><a href="https://twitter.com/fmarreco" target="_blank"><i class="icon icon-twitter"></i></a></li>
+  <li><a href="https://www.facebook.com/fabio.marreco.54" target="_blank"><i class="icon icon-facebook"></i></a></li>
+  <li><a href="https://linkedin.com/in/fabio-marreco-719946a/" target="_blank"><i class="icon icon-linkedin"></i></a></li>
+</ul>
+    <p class="txt-medium-gray">
+      <small>&copy;2020 All rights reserved. Made with <a href="http://jekyllrb.com/" target="_blank">Jekyll</a> and ♥</small>
+    </p>
+  </div>
+</footer>
+
+
+  <!-- <a href="https://github.com/fabiomarreco" target="_blank" class="github-corner"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#337ab7; color:#fff; position: absolute; top: 0; border: 0; right: 0;"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a> 4
+ -->
+</body>
+</html>
